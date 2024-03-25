@@ -1,5 +1,5 @@
 {
-    "sketch": "projeto.ino",
+    "sketch": "ler_tag.ino",
     "board": "arduino:avr:uno",
     "port": "COM10"
 }
