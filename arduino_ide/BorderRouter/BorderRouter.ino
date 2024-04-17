@@ -141,7 +141,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
 
 }
 
-void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer) {
+void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer, const char* direction, const char* tempHumid) {
   // Create a JSON document
   StaticJsonDocument<200> doc;
 
@@ -152,6 +152,8 @@ void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEv
   doc["cardUID"] = cardUID;
   doc["direction"] = direction;
   doc["answer"] = answer; 
+  doc["tempHumid"] = tempHumid; 
+
 
   //direction: NB(Node-Border) ,BN(Border-Node), BC(Border-Cloud), CB(Cloud_Border)
 
