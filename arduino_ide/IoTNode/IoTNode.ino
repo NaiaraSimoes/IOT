@@ -5,9 +5,18 @@
 #include <string.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <DHT.h>
 
 #define SS_PIN 5
 #define RST_PIN 0
+
+#define DHTPIN 4    
+#define DHTTYPE DHT11 
+DHT dht(DHTPIN, DHTTYPE); 
+
+unsigned long sensorReadInterval = 60000;
+unsigned long lastSensorReadTime = 0; 
+
 const int ledPin = 15;
 const int redPin = 2;
 const char node_id[] = "T64";
@@ -157,13 +166,10 @@ void callback(char *topic, byte *payload, unsigned int length) {
  // Serial.print("answer: ");
  // Serial.println(answer);
 
-  analyzeMessage(nodeID,localTimeDate, typeOfEvent, cardUID, direction, answer, studentName);
-
-
-
+  analyzeMessage(nodeID,localTimeDate, typeOfEvent, cardUID, direction, answer, studentName, 'null');
 }
 
-void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer, const char* studentName) {
+void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer, const char* studentName, const char* tempHumid) {
   // Create a JSON document
   StaticJsonDocument<200> doc;
 
@@ -177,7 +183,7 @@ void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEv
   doc["direction"] = direction;
   doc["answer"] = answer; 
   doc["studentName"] = studentName;
- 
+  doc["tempHumid"] = tempHumid;
   //direction: NB(Node-Border) ,BN(Border-Node), BC(Border-Cloud), CB(Cloud_Border)
 
   // Serialize the JSON document to a string
@@ -193,7 +199,7 @@ void sendJsonMessage(const char* nodeID, const char* localTimeDate, int typeOfEv
   }
 }
 
-void analyzeMessage(const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer, const char* studentName){
+void analyzeMessage(const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer, const char* studentName, const char* tempHumid){
 
 
   if (typeOfEvent == 1){ //1- request attendance 
@@ -276,16 +282,9 @@ void analyzeMessage(const char* nodeID, const char* localTimeDate, int typeOfEve
       delay(250);	// wait for half a second or 500 milliseconds
       digitalWrite (ledPin, LOW);	// turn off the LED
       delay(250);	// wait for half a second or 500 milliseconds
-    }
-
-      
+    }     
   }
-
-
-
-
 }
-
 
 const char* tmToString(const tm &timeInfo) {
     static char buffer[15]; // Static buffer to hold the formatted string
@@ -327,6 +326,36 @@ void reconnect() {
   return;
 }
 
+void SendSensorData((const char* nodeID, const char* localTimeDate, int typeOfEvent, const char* cardUID, const char* direction,  int answer, const char* studentName, const char* tempHumid)) {
+  // Create a JSON document
+  StaticJsonDocument<200> doc;
+
+ // Serial.println("MQTT Message uploading...");
+
+  // Populate the JSON document with the provided data
+  doc["nodeID"] = nodeID;
+  doc["localTimeDate"] = localTimeDate;
+  doc["typeOfEvent"] = typeOfEvent;
+  doc["cardUID"] = cardUID;
+  doc["direction"] = direction;
+  doc["answer"] = answer; 
+  doc["studentName"] = studentName;
+  doc["tempHumid"] = tempHumid;
+  //direction: NB(Node-Border) ,BN(Border-Node), BC(Border-Cloud), CB(Cloud_Border)
+  
+
+
+  // Serializar a mensagem JSON
+  char jsonBuffer[256];
+  size_t n = serializeJson(doc, jsonBuffer);
+
+  // Enviar a mensagem JSON para o broker MQTT
+  if (client.connected()) {
+    client.publish(topic, jsonBuffer, n);
+    Serial.println("Sensor data sent to MQTT broker");
+  }
+}  
+
 void setup() 
 {
   Serial.begin(9600);   // Initiate a serial communication
@@ -335,6 +364,7 @@ void setup()
   pinMode (ledPin, OUTPUT); //led
   pinMode (redPin,OUTPUT);
 
+  dht.begin();
   //connect to wifi 
 
   WiFi.begin(ssid, password);
@@ -427,7 +457,7 @@ void loop()
       strncpy(lastSentUID, UID, sizeof(lastSentUID) - 1);
       lastSentUID[sizeof(lastSentUID) - 1] = '\0'; // Ensure null termination
 
-      sendJsonMessage(node_id,timeString,1,UID,"NS",0,"null");
+      sendJsonMessage(node_id,timeString,1,UID,"NS",0,"null","null");
       lastReadTime = currentTime;
 
     }
@@ -443,9 +473,8 @@ void loop()
       strncpy(lastSentUID, UID, sizeof(lastSentUID) - 1);
       lastSentUID[sizeof(lastSentUID) - 1] = '\0'; // Ensure null termination
 
-      sendJsonMessage(node_id,timeString,1,UID,"NS",0,"null");
+      sendJsonMessage(node_id,timeString,1,UID,"NS",0,"null","null"),;
       lastReadTime = currentTime;
-
     }
 
         
@@ -463,8 +492,14 @@ void loop()
       lastReadTime = currentTime;
     }
 
-
-
+    unsigned long currentTime = millis();
+    if (currentTime - lastSensorReadTime >= sensorReadInterval) {
+    // Ler e enviar os dados do sensor
+    float temperature = dht.readTemperature(); // Ler a temperatura
+    float humidity = dht.readHumidity(); // Ler a umidade
+    SendSensorData(node_id,timeString,0,"null","NS","null","null",tempHumid);
+    lastSensorReadTime = currentTime;
+  }
 
 
 } 
